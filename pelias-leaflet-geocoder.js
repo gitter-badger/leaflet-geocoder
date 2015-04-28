@@ -121,6 +121,13 @@ L.Control.Geocoder = L.Control.extend({
   showResults: function(features) {
     var list;
     var results_container = this._results;
+    var focus = this._input.value;
+    
+    var highlight = function( text ){
+      var r = RegExp( '('+ focus + ')', 'gi' );
+      return text.replace( r, '<strong>$1</strong>' );
+    };
+
     results_container.innerHTML = '';
     results_container.style.display = 'block';
     // manage result box height
@@ -134,7 +141,7 @@ L.Control.Geocoder = L.Control.extend({
       var result_item = L.DomUtil.create('li', 'pelias-result', list);
       result_item.layer  = feature.properties.layer;
       result_item.coords = feature.geometry.coordinates; 
-      result_item.innerHTML = feature.properties.text;
+      result_item.innerHTML = highlight(feature.properties.text);
     });
   },
 
