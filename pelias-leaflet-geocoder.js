@@ -211,6 +211,28 @@ L.Control.Geocoder = L.Control.extend({
     this.marker.openPopup();
   },
 
+  enableMap: function() {
+    this._map.dragging.enable();
+    this._map.touchZoom.enable();
+    this._map.doubleClickZoom.enable();
+    this._map.scrollWheelZoom.enable();
+    this._map.boxZoom.enable();
+    this._map.keyboard.enable();
+    if (this._map.tap) this._map.tap.enable();
+    this._map_disabled = false;
+  },
+
+  disableMap: function() {
+    this._map.dragging.disable();
+    this._map.touchZoom.disable();
+    this._map.doubleClickZoom.disable();
+    this._map.scrollWheelZoom.disable();
+    this._map.boxZoom.disable();
+    this._map.keyboard.disable();
+    if (this._map.tap) map.tap.disable();
+    this._map_disabled = true;
+  },
+
   clear: function(all){
     this._results.style.display = 'none';
     if (all) {
@@ -228,6 +250,9 @@ L.Control.Geocoder = L.Control.extend({
       }
       this.removeMarkers();
     }
+    if (this._map_disabled) {
+      this.enableMap();
+    }
   },
 
   onAdd: function (map) {
@@ -236,6 +261,7 @@ L.Control.Geocoder = L.Control.extend({
 
     var self = this;
     this._body = document.body || document.getElementsByTagName('body')[0];
+    this._map_disabled = false;
 
     this._container = container;
 
@@ -257,6 +283,7 @@ L.Control.Geocoder = L.Control.extend({
           }
           if (self.options.hide_other_controls) {
             L.DomUtil.addClass(this._body, 'hide-other-controls');
+            this.disableMap();
           }
         }, this)
       .on(this._container, 'click', function(e){
