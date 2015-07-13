@@ -17,7 +17,9 @@ L.Control.Geocoder = L.Control.extend({
     point_icon: 'img/point_icon.png',
     polygon_icon: 'img/polygon_icon.png',
     full_width: window.innerWidth < 650,
-    hide_other_controls: window.innerWidth < 650
+    hide_other_controls: false,
+    drop_pin: true,
+    expanded: true
   },
 
   initialize: function (options) {
@@ -100,17 +102,8 @@ L.Control.Geocoder = L.Control.extend({
 
   suggest: function(input) {
     var url = this.options.url + '/suggest';
-    
-    // TODO make geo context optional (with completion suggester v2)
-    // /suggest while typing requires lat/lon
-    // https://github.com/elasticsearch/elasticsearch/issues/6444
-    // https://github.com/elastic/elasticsearch/issues/10746
-    var geo = this._map.getCenter();
-
     var params = {
-      input: input,
-      lat: geo.lat,
-      lon: geo.lng
+      input: input    
     };
     
     this.callPelias(url, params);
@@ -193,10 +186,12 @@ L.Control.Geocoder = L.Control.extend({
   },
 
   removeMarkers: function() {
-    for (i=0; i<this.markers.length; i++) {
-      this._map.removeLayer(this.markers[i]);
+    if (this.options.drop_pin) {
+      for (i=0; i<this.markers.length; i++) {
+        this._map.removeLayer(this.markers[i]);
+      }
+      this.markers = [];
     }
-    this.markers = [];
   },
 
   showMarker: function(text, coords) {
@@ -205,28 +200,50 @@ L.Control.Geocoder = L.Control.extend({
     var geo = [coords[1], coords[0]];
     this._map.setView( geo, this._map.getZoom() || 8 );
     
-    this.marker = new L.marker(geo).bindPopup(text);
-    this._map.addLayer(this.marker);
-    this.markers.push(this.marker);
-    this.marker.openPopup();
+    if (this.options.drop_pin) {
+      this.marker = new L.marker(geo).bindPopup(text);
+      this._map.addLayer(this.marker);
+      this.markers.push(this.marker);
+      this.marker.openPopup();
+    }
   },
 
-  clear: function(all){
+  clear: function(text){
+    var selected = this._results.querySelectorAll('.' + 'pelias-selected')[0];
+    var self = this;
+    var clearMobile = function() {
+      if (self.options.full_width && !self.options.expanded) {
+        self._container.style.width = '';
+      }
+      if (self.options.hide_other_controls) {
+        L.DomUtil.removeClass(self._body, 'hide-other-controls');
+      }
+    };
+
     this._results.style.display = 'none';
-    if (all) {
+    if (selected) {
+      this._input.value = selected.innerText || selected.textContent;
+    }
+    this._input.blur();
+    if (this._input.value === '') {
+      this._input.placeholder = this.options.placeholder;;
+      L.DomUtil.addClass(this._close, 'hidden');
+      if (!this.options.expanded) {
+        L.DomUtil.removeClass(this._container, 'pelias-expanded');
+      }
+      clearMobile();
+    }
+
+    if (text) {
       this._results.innerHTML = '';
       this._input.value = '';
-      this._input.placeholder = '';
-      this._input.blur();
-      L.DomUtil.addClass(this._close, 'hidden');
-      L.DomUtil.removeClass(this._container, 'pelias-expanded');
-      if (this.options.full_width) {
-        this._container.style.width = '';
-      }
-      if (this.options.hide_other_controls) {
-        L.DomUtil.removeClass(this._body, 'hide-other-controls');
-      }
+      // this._input.placeholder = this.options.placeholder;
+      // this._input.blur();
+      // L.DomUtil.addClass(this._close, 'hidden');
+      // L.DomUtil.removeClass(this._container, 'pelias-expanded');
       this.removeMarkers();
+      clearMobile();
+      this._input.focus();
     }
   },
 
@@ -247,13 +264,23 @@ L.Control.Geocoder = L.Control.extend({
     this._closeimg= L.DomUtil.create('img', 'close_icon', this._close);
     this._closeimg.src = 'img/x.png';
 
+    if (this.options.expanded) {
+      L.DomUtil.addClass(this._container, 'pelias-expanded');
+      this._input.placeholder = this.options.placeholder;
+      if (this.options.full_width) {
+        this._container.style.width = (window.innerWidth - 50) + 'px';
+      }
+    }
+
     L.DomEvent
       .on(this._input, 'focus', function(e){
           this._input.placeholder = this.options.placeholder;
           this._results.style.display = 'block';
-          L.DomUtil.addClass(this._container, 'pelias-expanded');
+          if (!this.options.expanded) {
+            L.DomUtil.addClass(this._container, 'pelias-expanded');
+          }
           if (self.options.full_width) {
-            this._container.style.width = (window.innerWidth - 20) + 'px';
+            this._container.style.width = (window.innerWidth - 50) + 'px';
           }
           if (self.options.hide_other_controls) {
             L.DomUtil.addClass(this._body, 'hide-other-controls');
@@ -370,10 +397,29 @@ L.Control.Geocoder = L.Control.extend({
           }
         }, 50, this), this)
       .on(this._results, 'mousedown', function(e){
+          L.DomEvent.preventDefault(e);
+          var _selected = this._results.querySelectorAll('.' + 'pelias-selected')[0];
+          if (_selected) {
+            L.DomUtil.removeClass(_selected, 'pelias-selected');
+          }
+
           var selected = e.target;
+          var findParent = function() {
+            if (!L.DomUtil.hasClass(selected, 'pelias-result')) {
+              selected = selected.parentElement;
+              findParent();
+            }
+            return selected
+          };
+          
+          // click event can be registered on the child nodes 
+          // that does not have the required coords prop
+          // so its important to find the parent. 
+          findParent();
+
+          L.DomUtil.addClass(selected, 'pelias-selected');
           this.showMarker(selected.innerHTML, selected['coords']);
           this.clear();
-          L.DomEvent.preventDefault(e);
         }, this)
       .on(this._results, 'mouseover', function(e){
           if(map.scrollWheelZoom.enabled() && map.options.scrollWheelZoom){
